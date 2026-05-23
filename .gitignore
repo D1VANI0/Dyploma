@@ -1,0 +1,5 @@
+/cache/
+*.pem
+outgoing_mail_*
+.env
+config/mail.php
