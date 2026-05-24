@@ -5,13 +5,18 @@ function db(): PDO {
   static $pdo = null;
   if ($pdo instanceof PDO) return $pdo;
 
-  $host = getenv("DB_HOST") ?: "localhost";
-  $db   = getenv("DB_NAME") ?: "scouthub";
-  $user = getenv("DB_USER") ?: "root";
+  $host = getenv("DB_HOST") ?: "";
+  $db   = getenv("DB_NAME") ?: "";
+  $user = getenv("DB_USER") ?: "";
   $pass = getenv("DB_PASS") ?: "";
+  $port = (int)(getenv("DB_PORT") ?: 3306);
   $charset = "utf8mb4";
 
-  $dsn = "mysql:host={$host};dbname={$db};charset={$charset}";
+  if ($host === "" || $db === "" || $user === "") {
+    throw new RuntimeException("Database environment variables DB_HOST, DB_NAME and DB_USER are required.");
+  }
+
+  $dsn = "mysql:host={$host};port={$port};dbname={$db};charset={$charset}";
   $options = [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,

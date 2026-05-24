@@ -23,13 +23,11 @@ function mail_config_value(string $key, string $default = ""): string {
 
 function absolute_app_url(string $path): string {
   $configuredUrl = rtrim(mail_config_value("APP_URL"), "/");
-  if ($configuredUrl !== "") {
-    return $configuredUrl . "/" . ltrim($path, "/");
+  if ($configuredUrl === "") {
+    throw new RuntimeException("APP_URL environment variable is required.");
   }
 
-  $scheme = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off") ? "https" : "http";
-  $host = (string)($_SERVER["HTTP_HOST"] ?? "localhost");
-  return $scheme . "://" . $host . app_url($path);
+  return $configuredUrl . "/" . ltrim($path, "/");
 }
 
 function smtp_read_response($socket): array {
@@ -98,7 +96,8 @@ function send_smtp_mail(string $to, string $subject, string $body): bool {
     return false;
   }
 
-  $serverName = preg_replace('/[^a-zA-Z0-9.-]/', "", (string)($_SERVER["SERVER_NAME"] ?? "localhost")) ?: "localhost";
+  $serverName = parse_url(mail_config_value("APP_URL"), PHP_URL_HOST);
+  $serverName = preg_replace('/[^a-zA-Z0-9.-]/', "", (string)$serverName) ?: "scouthub";
   if (!smtp_command($socket, "EHLO " . $serverName, [250])) {
     fclose($socket);
     return false;
@@ -166,14 +165,6 @@ function send_smtp_mail(string $to, string $subject, string $body): bool {
   return $code === 250;
 }
 
-function write_mail_to_cache(string $to, string $subject, string $body): void {
-  $cacheDir = __DIR__ . "/../cache";
-  if (is_dir($cacheDir) && is_writable($cacheDir)) {
-    $file = $cacheDir . "/outgoing_mail_" . date("Ymd_His") . "_" . bin2hex(random_bytes(3)) . ".txt";
-    file_put_contents($file, "TO: {$to}\nSUBJECT: {$subject}\n\n{$body}\n");
-  }
-}
-
 function send_app_mail(string $to, string $subject, string $body): bool {
   $to = trim($to);
   if ($to === "" || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
@@ -184,7 +175,11 @@ function send_app_mail(string $to, string $subject, string $body): bool {
     return true;
   }
 
-  $from = mail_config_value("MAIL_FROM", "no-reply@scouthub.local");
+  $from = mail_config_value("MAIL_FROM");
+  if (!filter_var($from, FILTER_VALIDATE_EMAIL)) {
+    return false;
+  }
+
   $fromName = mail_config_value("MAIL_FROM_NAME", "ScoutHub");
   $headers = [
     "From: {$fromName} <{$from}>",
@@ -197,8 +192,6 @@ function send_app_mail(string $to, string $subject, string $body): bool {
   if ($sent) {
     return true;
   }
-
-  write_mail_to_cache($to, $subject, $body);
 
   return false;
 }

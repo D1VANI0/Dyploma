@@ -8,8 +8,6 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
   redirect_to("forgot_password.php");
 }
 
-verify_csrf_or_fail();
-
 $token = (string)($_POST["token"] ?? "");
 $password = (string)($_POST["password"] ?? "");
 $repeat = (string)($_POST["password_repeat"] ?? "");

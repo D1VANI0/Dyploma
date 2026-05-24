@@ -4,12 +4,14 @@ declare(strict_types=1);
 require_once __DIR__ . "/partials/auth.php";
 require_login();
 require_once __DIR__ . "/partials/players_repository.php";
+require_once __DIR__ . "/partials/user_verification.php";
 
 $pdo = db();
+ensure_user_verification_columns();
 $userId = current_user_id();
 $role = normalize_role(current_user_role());
 
-$u = $pdo->prepare("SELECT id, email, role, first_name, last_name FROM users WHERE id = ? LIMIT 1");
+$u = $pdo->prepare("SELECT id, email, role, verification_status, first_name, last_name FROM users WHERE id = ? LIMIT 1");
 $u->execute([$userId]);
 $user = $u->fetch(PDO::FETCH_ASSOC);
 if (!$user) {
@@ -246,15 +248,53 @@ $profilePlayer = can_admin($role) ? $editPlayer : $ownPlayer;
 
     <?php if (can_admin($role)): ?>
       <?php
-        $users = $pdo->query("SELECT id, email, role, first_name, last_name, created_at FROM users ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
+        $pendingStaff = $pdo->query("
+          SELECT id, email, role, verification_status, first_name, last_name, created_at
+          FROM users
+          WHERE role IN ('coach', 'scout', 'skaut')
+            AND verification_status = 'pending'
+          ORDER BY created_at ASC, id ASC
+        ")->fetchAll(PDO::FETCH_ASSOC);
+        $users = $pdo->query("SELECT id, email, role, verification_status, first_name, last_name, created_at FROM users ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
         $players = fetch_player_rows(true);
       ?>
+
+      <div class="card-soft p-4 mt-3">
+        <div class="fw-semibold mb-3">Admin - konta trenerow i skautow do potwierdzenia</div>
+        <?php if (!$pendingStaff): ?>
+          <div class="text-muted">Brak kont oczekujacych na potwierdzenie.</div>
+        <?php else: ?>
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead><tr><th>Uzytkownik</th><th>E-mail</th><th>Rola</th><th>Data</th><th></th></tr></thead>
+              <tbody>
+              <?php foreach ($pendingStaff as $row): ?>
+                <tr>
+                  <td><?= h(($row["first_name"] ?? "") . " " . ($row["last_name"] ?? "")) ?></td>
+                  <td><?= h($row["email"] ?? "") ?></td>
+                  <td><?= h(role_label(normalize_role((string)$row["role"]))) ?></td>
+                  <td><?= h($row["created_at"] ?? "") ?></td>
+                  <td class="text-end">
+                    <form class="d-inline" method="post" action="admin_user_verification.php">
+                      <?= csrf_input() ?>
+                      <input type="hidden" name="user_id" value="<?= (int)$row["id"] ?>">
+                      <button class="btn btn-sm btn-success pill" name="decision" value="approve">Potwierdz</button>
+                      <button class="btn btn-sm btn-outline-danger pill" name="decision" value="reject">Odrzuc</button>
+                    </form>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
+      </div>
 
       <div class="card-soft p-4 mt-3">
         <div class="fw-semibold mb-3">Admin - użytkownicy</div>
         <div class="table-responsive">
           <table class="table align-middle">
-            <thead><tr><th>ID</th><th>Użytkownik</th><th>E-mail</th><th>Rola</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Użytkownik</th><th>E-mail</th><th>Rola</th><th>Status</th><th></th></tr></thead>
             <tbody>
             <?php foreach ($users as $row): ?>
               <tr>
@@ -272,6 +312,17 @@ $profilePlayer = can_admin($role) ? $editPlayer : $ownPlayer;
                     </select>
                     <button class="btn btn-sm btn-outline-success pill" type="submit">Zapisz</button>
                   </form>
+                </td>
+                <td>
+                  <div class="small"><?= h(verification_label((string)($row["verification_status"] ?? "approved"))) ?></div>
+                  <?php if (role_requires_admin_verification((string)$row["role"]) && (int)$row["id"] !== $userId): ?>
+                    <form class="d-flex gap-2 mt-1" method="post" action="admin_user_verification.php">
+                      <?= csrf_input() ?>
+                      <input type="hidden" name="user_id" value="<?= (int)$row["id"] ?>">
+                      <button class="btn btn-sm btn-outline-success pill" name="decision" value="approve">Potwierdz</button>
+                      <button class="btn btn-sm btn-outline-danger pill" name="decision" value="reject">Odrzuc</button>
+                    </form>
+                  <?php endif; ?>
                 </td>
                 <td class="text-end">
                   <?php if ((int)$row["id"] !== $userId): ?>

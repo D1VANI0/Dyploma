@@ -34,7 +34,7 @@ require_once __DIR__ . "/partials/navbar.php";
         <div class="alert alert-danger py-2">Link jest nieprawidłowy albo wygasł.</div>
         <a class="btn btn-success pill w-100" href="forgot_password.php">Wyślij nowy link</a>
       <?php else: ?>
-        <form class="vstack gap-2" method="post" action="actions/password_reset_confirm.php">
+        <form class="vstack gap-2" method="post" action="password_reset_confirm.php">
           <?= csrf_input() ?>
           <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, "UTF-8") ?>">
 

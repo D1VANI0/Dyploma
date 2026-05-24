@@ -26,7 +26,7 @@ $ok = (string)($_GET["ok"] ?? "");
         <div class="alert alert-success py-2"><?= htmlspecialchars($ok) ?></div>
       <?php endif; ?>
 
-      <form class="vstack gap-2" method="post" action="actions/password_reset_request.php">
+      <form class="vstack gap-2" method="post" action="password_reset_request.php">
         <?= csrf_input() ?>
         <div>
           <label class="filter-label">E-mail</label>

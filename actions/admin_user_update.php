@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/../partials/auth.php";
 require_login();
-require_once __DIR__ . "/../partials/players_repository.php";
+require_once __DIR__ . "/../partials/user_verification.php";
 
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
   redirect_to("account.php");
@@ -24,9 +24,10 @@ if ($id <= 0 || !in_array($role, $allowed, true)) {
 }
 
 try {
+  ensure_user_verification_columns();
   $pdo = db();
-  $stmt = $pdo->prepare("UPDATE users SET role = ? WHERE id = ?");
-  $stmt->execute([$role, $id]);
+  $stmt = $pdo->prepare("UPDATE users SET role = ?, verification_status = ?, verified_at = NOW(), verified_by = ? WHERE id = ?");
+  $stmt->execute([$role, "approved", current_user_id(), $id]);
   redirect_to("account.php?ok=" . urlencode("Rola użytkownika została zmieniona."));
 } catch (Throwable $e) {
   redirect_to("account.php?err=" . urlencode("Nie udało się zmienić roli."));

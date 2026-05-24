@@ -22,7 +22,7 @@ $err = (string)($_GET["err"] ?? "");
         <div class="alert alert-danger py-2"><?= htmlspecialchars($err) ?></div>
       <?php endif; ?>
 
-      <form class="row g-2" method="post" action="actions/register_post.php" autocomplete="off">
+      <form class="row g-2" method="post" action="register_post.php" autocomplete="off">
         <?= csrf_input() ?>
         <div class="col-12">
           <label class="filter-label">Rola</label>

@@ -1,7 +1,24 @@
 <?php
 declare(strict_types=1);
 
+function request_is_https(): bool {
+  if (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off") {
+    return true;
+  }
+
+  $forwardedProto = strtolower((string)($_SERVER["HTTP_X_FORWARDED_PROTO"] ?? ""));
+  return $forwardedProto === "https";
+}
+
 if (session_status() !== PHP_SESSION_ACTIVE) {
+  session_set_cookie_params([
+    "lifetime" => 0,
+    "path" => "/",
+    "domain" => "",
+    "secure" => request_is_https(),
+    "httponly" => true,
+    "samesite" => "Lax",
+  ]);
   session_start();
 }
 
