@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/partials/auth.php";
 
+clear_login_cookie();
+
 $_SESSION = [];
 if (ini_get("session.use_cookies")) {
   $p = session_get_cookie_params();
