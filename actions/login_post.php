@@ -8,8 +8,6 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
   redirect_to("login.php?err=" . urlencode("Nieprawidlowa metoda."));
 }
 
-verify_csrf_or_fail();
-
 $email = trim((string)($_POST["email"] ?? ""));
 $pass  = (string)($_POST["password"] ?? "");
 
