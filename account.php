@@ -29,6 +29,14 @@ function h(mixed $value): string {
   return htmlspecialchars((string)$value, ENT_QUOTES, "UTF-8");
 }
 
+function status_text(mixed $value): string {
+  return [
+    "approved" => "Potwierdzone",
+    "pending" => "Oczekuje",
+    "rejected" => "Odrzucone",
+  ][(string)$value] ?? (string)$value;
+}
+
 function stat_value(?array $player, string $key): string {
   if (!$player || !array_key_exists($key, $player)) return "";
   return h($player[$key]);
@@ -54,6 +62,28 @@ if (can_admin($role) && (int)($_GET["player_id"] ?? 0) > 0) {
   $editPlayer = fetch_player_row((int)$_GET["player_id"], true);
 }
 $profilePlayer = can_admin($role) ? $editPlayer : $ownPlayer;
+
+$pendingPlayers = [];
+if (can_review_players($role)) {
+  $pendingPlayers = array_filter(fetch_player_rows(true), function($p) use ($role, $userId) {
+    $isPending = ($p["status"] ?? "") !== "approved" || ($p["stats_status"] ?? "") !== "approved";
+    if (!$isPending) return false;
+    if (can_admin($role)) return true;
+    $requestedTo = (int)($p["review_requested_to"] ?? 0);
+    return $requestedTo === 0 || $requestedTo === $userId;
+  });
+}
+
+$pendingStaff = [];
+if (can_admin($role)) {
+  $pendingStaff = $pdo->query("
+    SELECT id, email, role, verification_status, first_name, last_name, created_at
+    FROM users
+    WHERE role IN ('coach', 'scout', 'skaut')
+      AND verification_status = 'pending'
+    ORDER BY created_at ASC, id ASC
+  ")->fetchAll(PDO::FETCH_ASSOC);
+}
 ?>
 
 <main>
@@ -73,14 +103,14 @@ $profilePlayer = can_admin($role) ? $editPlayer : $ownPlayer;
       <div class="alert alert-success"><?= h($ok) ?></div>
     <?php endif; ?>
 
-    <div class="row g-3">
+    <div class="row g-3 align-items-start">
       <div class="col-12 col-xl-4">
-        <div class="card-soft p-4 h-100">
+        <div class="card-soft p-4">
           <div class="fw-semibold mb-3">Dane konta</div>
           <form class="vstack gap-2" method="post" action="actions/account_update.php">
             <?= csrf_input() ?>
             <div>
-              <label class="filter-label">Imię</label>
+              <label class="filter-label">Imie</label>
               <input class="form-control" name="first_name" value="<?= h($user["first_name"] ?? "") ?>" required>
             </div>
             <div>
@@ -96,41 +126,41 @@ $profilePlayer = can_admin($role) ? $editPlayer : $ownPlayer;
 
           <form class="vstack gap-2 mt-4 pt-3 border-top" method="post" action="actions/account_password_update.php">
             <?= csrf_input() ?>
-            <div class="fw-semibold">Zmiana hasła</div>
+            <div class="fw-semibold">Zmiana hasla</div>
             <div>
-              <label class="filter-label">Obecne hasło</label>
+              <label class="filter-label">Obecne haslo</label>
               <input class="form-control" type="password" name="current_password" autocomplete="current-password" required>
             </div>
             <div>
-              <label class="filter-label">Nowe hasło</label>
+              <label class="filter-label">Nowe haslo</label>
               <input class="form-control" type="password" name="new_password" minlength="10" autocomplete="new-password" required>
             </div>
             <div>
-              <label class="filter-label">Powtórz nowe hasło</label>
+              <label class="filter-label">Powtorz nowe haslo</label>
               <input class="form-control" type="password" name="repeat_password" minlength="10" autocomplete="new-password" required>
             </div>
-            <button class="btn btn-outline-success pill" type="submit">Zmień hasło</button>
+            <button class="btn btn-outline-success pill" type="submit">Zmien haslo</button>
           </form>
         </div>
       </div>
 
-      <?php if ($role === "player" || can_admin($role)): ?>
+      <?php if ($role === "player" || (can_admin($role) && $profilePlayer)): ?>
         <div class="col-12 col-xl-8">
           <div class="card-soft p-4">
             <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
               <div>
-                <div class="fw-semibold"><?= can_admin($role) ? "Edycja profilu zawodnika" : "Mój profil zawodnika" ?></div>
+                <div class="fw-semibold"><?= can_admin($role) ? "Edycja profilu zawodnika" : "Moj profil zawodnika" ?></div>
                 <div class="text-muted small">
                   <?php if ($profilePlayer): ?>
-                    Status profilu: <?= h($profilePlayer["status"] ?? "pending") ?>,
-                    status statystyk: <?= h($profilePlayer["stats_status"] ?? "pending") ?>
+                    Status profilu: <?= h(status_text($profilePlayer["status"] ?? "pending")) ?>,
+                    status statystyk: <?= h(status_text($profilePlayer["stats_status"] ?? "pending")) ?>
                   <?php else: ?>
-                    Uzupełnij profil, aby trafił do zatwierdzenia.
+                    Uzupelnij profil, aby trafil do zatwierdzenia.
                   <?php endif; ?>
                 </div>
               </div>
               <?php if (can_admin($role) && !$profilePlayer): ?>
-                <div class="text-muted small">Wybierz zawodnika z listy niżej.</div>
+                <div class="text-muted small">Wybierz zawodnika z listy nizej.</div>
               <?php endif; ?>
             </div>
 
@@ -140,7 +170,7 @@ $profilePlayer = can_admin($role) ? $editPlayer : $ownPlayer;
                 <input type="hidden" name="player_id" value="<?= h($profilePlayer["id"] ?? 0) ?>">
 
                 <div class="col-12 col-md-6">
-                  <label class="filter-label">Imię</label>
+                  <label class="filter-label">Imie</label>
                   <input class="form-control" name="first_name" value="<?= h($profilePlayer["first_name"] ?? $user["first_name"] ?? "") ?>" required>
                 </div>
                 <div class="col-12 col-md-6">
@@ -179,7 +209,7 @@ $profilePlayer = can_admin($role) ? $editPlayer : $ownPlayer;
 
                 <div class="col-12">
                   <button class="btn btn-success pill w-100" type="submit">
-                    <?= can_admin($role) ? "Zapisz i zatwierdź" : "Wyślij do potwierdzenia" ?>
+                    <?= can_admin($role) ? "Zapisz i zatwierdz" : "Wyslij do potwierdzenia" ?>
                   </button>
                 </div>
               </form>
@@ -191,7 +221,7 @@ $profilePlayer = can_admin($role) ? $editPlayer : $ownPlayer;
                     <input class="form-control" type="email" name="reviewer_email" placeholder="np. trener@club.test" required>
                   </div>
                   <div class="col-12 col-md-4 d-flex align-items-end">
-                    <button class="btn btn-outline-success pill w-100" type="submit">Wyślij prośbę</button>
+                    <button class="btn btn-outline-success pill w-100" type="submit">Wyslij prosbe</button>
                   </div>
                 </form>
               <?php endif; ?>
@@ -199,102 +229,92 @@ $profilePlayer = can_admin($role) ? $editPlayer : $ownPlayer;
           </div>
         </div>
       <?php endif; ?>
-    </div>
 
-    <?php if (can_review_players($role)): ?>
-      <?php
-        $pendingPlayers = array_filter(fetch_player_rows(true), function($p) use ($role, $userId) {
-          $isPending = ($p["status"] ?? "") !== "approved" || ($p["stats_status"] ?? "") !== "approved";
-          if (!$isPending) return false;
-          if (can_admin($role)) return true;
-          $requestedTo = (int)($p["review_requested_to"] ?? 0);
-          return $requestedTo === 0 || $requestedTo === $userId;
-        });
-      ?>
-      <div class="card-soft p-4 mt-3">
-        <div class="fw-semibold mb-3">Dane zawodników do potwierdzenia</div>
-        <?php if (!$pendingPlayers): ?>
-          <div class="text-muted">Brak zgłoszeń do sprawdzenia.</div>
-        <?php else: ?>
-          <div class="table-responsive">
-            <table class="table align-middle">
-              <thead><tr><th>Zawodnik</th><th>Profil</th><th>Statystyki</th><th>Prośba</th><th></th></tr></thead>
-              <tbody>
-              <?php foreach ($pendingPlayers as $p): ?>
-                <tr>
-                  <td><?= h(($p["first_name"] ?? "") . " " . ($p["last_name"] ?? "")) ?></td>
-                  <td><?= h($p["status"] ?? "") ?></td>
-                  <td><?= h($p["stats_status"] ?? "") ?></td>
-                  <td><?= !empty($p["review_requested_at"]) ? h($p["review_requested_at"]) : "—" ?></td>
-                  <td class="text-end">
-                    <form class="d-inline" method="post" action="actions/player_review.php">
-                      <?= csrf_input() ?>
-                      <input type="hidden" name="player_id" value="<?= (int)$p["id"] ?>">
-                      <button class="btn btn-sm btn-success pill" name="decision" value="approve">Potwierdź</button>
-                      <button class="btn btn-sm btn-outline-danger pill" name="decision" value="reject">Odrzuć</button>
-                    </form>
-                    <?php if (can_admin($role)): ?>
-                      <a class="btn btn-sm btn-outline-secondary pill" href="account.php?player_id=<?= (int)$p["id"] ?>">Edytuj</a>
-                    <?php endif; ?>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
-              </tbody>
-            </table>
-          </div>
-        <?php endif; ?>
-      </div>
-    <?php endif; ?>
+      <?php if (can_review_players($role) || can_admin($role)): ?>
+        <div class="col-12 col-xl-8">
+          <?php if (can_review_players($role)): ?>
+            <div class="card-soft p-4">
+              <div class="fw-semibold mb-3">Dane zawodnikow do potwierdzenia</div>
+              <?php if (!$pendingPlayers): ?>
+                <div class="text-muted">Brak zgloszen do sprawdzenia.</div>
+              <?php else: ?>
+                <div class="table-responsive">
+                  <table class="table align-middle">
+                    <thead><tr><th>Zawodnik</th><th>Profil</th><th>Statystyki</th><th>Prosba</th><th></th></tr></thead>
+                    <tbody>
+                    <?php foreach ($pendingPlayers as $p): ?>
+                      <tr>
+                        <td><?= h(($p["first_name"] ?? "") . " " . ($p["last_name"] ?? "")) ?></td>
+                        <td><?= h(status_text($p["status"] ?? "")) ?></td>
+                        <td><?= h(status_text($p["stats_status"] ?? "")) ?></td>
+                        <td><?= !empty($p["review_requested_at"]) ? h($p["review_requested_at"]) : "-" ?></td>
+                        <td class="text-end">
+                          <form class="d-inline" method="post" action="actions/player_review.php">
+                            <?= csrf_input() ?>
+                            <input type="hidden" name="player_id" value="<?= (int)$p["id"] ?>">
+                            <button class="btn btn-sm btn-success pill" name="decision" value="approve">Potwierdz</button>
+                            <button class="btn btn-sm btn-outline-danger pill" name="decision" value="reject">Odrzuc</button>
+                          </form>
+                          <?php if (can_admin($role)): ?>
+                            <a class="btn btn-sm btn-outline-secondary pill" href="account.php?player_id=<?= (int)$p["id"] ?>">Edytuj</a>
+                          <?php endif; ?>
+                        </td>
+                      </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
+              <?php endif; ?>
+            </div>
+          <?php endif; ?>
+
+          <?php if (can_admin($role)): ?>
+            <div class="card-soft p-4 <?= can_review_players($role) ? "mt-3" : "" ?>">
+              <div class="fw-semibold mb-3">Admin - konta trenerow i skautow do potwierdzenia</div>
+              <?php if (!$pendingStaff): ?>
+                <div class="text-muted">Brak kont oczekujacych na potwierdzenie.</div>
+              <?php else: ?>
+                <div class="table-responsive">
+                  <table class="table align-middle">
+                    <thead><tr><th>Uzytkownik</th><th>E-mail</th><th>Rola</th><th>Data</th><th></th></tr></thead>
+                    <tbody>
+                    <?php foreach ($pendingStaff as $row): ?>
+                      <tr>
+                        <td><?= h(($row["first_name"] ?? "") . " " . ($row["last_name"] ?? "")) ?></td>
+                        <td><?= h($row["email"] ?? "") ?></td>
+                        <td><?= h(role_label(normalize_role((string)$row["role"]))) ?></td>
+                        <td><?= h($row["created_at"] ?? "") ?></td>
+                        <td class="text-end">
+                          <form class="d-inline" method="post" action="admin_user_verification.php">
+                            <?= csrf_input() ?>
+                            <input type="hidden" name="user_id" value="<?= (int)$row["id"] ?>">
+                            <button class="btn btn-sm btn-success pill" name="decision" value="approve">Potwierdz</button>
+                            <button class="btn btn-sm btn-outline-danger pill" name="decision" value="reject">Odrzuc</button>
+                          </form>
+                        </td>
+                      </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
+              <?php endif; ?>
+            </div>
+          <?php endif; ?>
+        </div>
+      <?php endif; ?>
+    </div>
 
     <?php if (can_admin($role)): ?>
       <?php
-        $pendingStaff = $pdo->query("
-          SELECT id, email, role, verification_status, first_name, last_name, created_at
-          FROM users
-          WHERE role IN ('coach', 'scout', 'skaut')
-            AND verification_status = 'pending'
-          ORDER BY created_at ASC, id ASC
-        ")->fetchAll(PDO::FETCH_ASSOC);
         $users = $pdo->query("SELECT id, email, role, verification_status, first_name, last_name, created_at FROM users ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
         $players = fetch_player_rows(true);
       ?>
 
       <div class="card-soft p-4 mt-3">
-        <div class="fw-semibold mb-3">Admin - konta trenerow i skautow do potwierdzenia</div>
-        <?php if (!$pendingStaff): ?>
-          <div class="text-muted">Brak kont oczekujacych na potwierdzenie.</div>
-        <?php else: ?>
-          <div class="table-responsive">
-            <table class="table align-middle">
-              <thead><tr><th>Uzytkownik</th><th>E-mail</th><th>Rola</th><th>Data</th><th></th></tr></thead>
-              <tbody>
-              <?php foreach ($pendingStaff as $row): ?>
-                <tr>
-                  <td><?= h(($row["first_name"] ?? "") . " " . ($row["last_name"] ?? "")) ?></td>
-                  <td><?= h($row["email"] ?? "") ?></td>
-                  <td><?= h(role_label(normalize_role((string)$row["role"]))) ?></td>
-                  <td><?= h($row["created_at"] ?? "") ?></td>
-                  <td class="text-end">
-                    <form class="d-inline" method="post" action="admin_user_verification.php">
-                      <?= csrf_input() ?>
-                      <input type="hidden" name="user_id" value="<?= (int)$row["id"] ?>">
-                      <button class="btn btn-sm btn-success pill" name="decision" value="approve">Potwierdz</button>
-                      <button class="btn btn-sm btn-outline-danger pill" name="decision" value="reject">Odrzuc</button>
-                    </form>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
-              </tbody>
-            </table>
-          </div>
-        <?php endif; ?>
-      </div>
-
-      <div class="card-soft p-4 mt-3">
-        <div class="fw-semibold mb-3">Admin - użytkownicy</div>
+        <div class="fw-semibold mb-3">Admin - uzytkownicy</div>
         <div class="table-responsive">
           <table class="table align-middle">
-            <thead><tr><th>ID</th><th>Użytkownik</th><th>E-mail</th><th>Rola</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Uzytkownik</th><th>E-mail</th><th>Rola</th><th>Status</th><th></th></tr></thead>
             <tbody>
             <?php foreach ($users as $row): ?>
               <tr>
@@ -314,8 +334,9 @@ $profilePlayer = can_admin($role) ? $editPlayer : $ownPlayer;
                   </form>
                 </td>
                 <td>
-                  <div class="small"><?= h(verification_label((string)($row["verification_status"] ?? "approved"))) ?></div>
-                  <?php if (role_requires_admin_verification((string)$row["role"]) && (int)$row["id"] !== $userId): ?>
+                  <?php $rowVerificationStatus = (string)($row["verification_status"] ?? "approved"); ?>
+                  <div class="small"><?= h(verification_label($rowVerificationStatus)) ?></div>
+                  <?php if (role_requires_admin_verification((string)$row["role"]) && $rowVerificationStatus === "pending" && (int)$row["id"] !== $userId): ?>
                     <form class="d-flex gap-2 mt-1" method="post" action="admin_user_verification.php">
                       <?= csrf_input() ?>
                       <input type="hidden" name="user_id" value="<?= (int)$row["id"] ?>">
@@ -326,10 +347,10 @@ $profilePlayer = can_admin($role) ? $editPlayer : $ownPlayer;
                 </td>
                 <td class="text-end">
                   <?php if ((int)$row["id"] !== $userId): ?>
-                    <form method="post" action="actions/admin_user_delete.php" onsubmit="return confirm('Na pewno usunąć to konto i powiązane dane?');">
+                    <form method="post" action="actions/admin_user_delete.php" onsubmit="return confirm('Na pewno usunac to konto i powiazane dane?');">
                       <?= csrf_input() ?>
                       <input type="hidden" name="user_id" value="<?= (int)$row["id"] ?>">
-                      <button class="btn btn-sm btn-outline-danger pill" type="submit">Usuń</button>
+                      <button class="btn btn-sm btn-outline-danger pill" type="submit">Usun</button>
                     </form>
                   <?php endif; ?>
                 </td>
@@ -350,8 +371,8 @@ $profilePlayer = can_admin($role) ? $editPlayer : $ownPlayer;
               <tr>
                 <td><?= (int)$p["id"] ?></td>
                 <td><?= h(($p["first_name"] ?? "") . " " . ($p["last_name"] ?? "")) ?></td>
-                <td><?= h($p["status"] ?? "") ?></td>
-                <td><?= h($p["stats_status"] ?? "") ?></td>
+                <td><?= h(status_text($p["status"] ?? "")) ?></td>
+                <td><?= h(status_text($p["stats_status"] ?? "")) ?></td>
                 <td class="text-end">
                   <a class="btn btn-sm btn-outline-success pill" href="account.php?player_id=<?= (int)$p["id"] ?>">Edytuj</a>
                 </td>
