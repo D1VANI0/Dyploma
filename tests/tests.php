@@ -1,8 +1,10 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . "/partials/auth.php";
-require_once __DIR__ . "/partials/players_repository.php";
+define("PROJECT_ROOT", dirname(__DIR__));
+
+require_once PROJECT_ROOT . "/partials/auth.php";
+require_once PROJECT_ROOT . "/partials/players_repository.php";
 
 function test_assert(bool $condition, string $message): void {
   if (!$condition) {
@@ -11,7 +13,7 @@ function test_assert(bool $condition, string $message): void {
 }
 
 function source_contains(string $path, array $fragments): bool {
-  $source = file_get_contents(__DIR__ . "/" . $path);
+  $source = file_get_contents(PROJECT_ROOT . "/" . $path);
   if ($source === false) {
     return false;
   }
@@ -111,7 +113,7 @@ $tests = [
   },
 
   "Wszystkie pliki PHP maja poprawna skladnie" => function (): void {
-    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(__DIR__));
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(PROJECT_ROOT));
     foreach ($iterator as $file) {
       if (!$file->isFile() || strtolower($file->getExtension()) !== "php") {
         continue;
